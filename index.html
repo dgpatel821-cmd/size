@@ -18,6 +18,11 @@ body {
     min-height: 100vh;
 }
 
+/* Drag Overlay */
+body.dragging {
+    background: linear-gradient(135deg,#5f6dd8,#5a3ca0);
+}
+
 .container {
     background: #fff;
     padding: 35px;
@@ -30,7 +35,7 @@ body {
 
 h2 { margin-bottom: 25px; }
 
-/* CLEAN UPLOAD CARD */
+/* Upload Card */
 .upload-box {
     border: 2px dashed #764ba2;
     padding: 35px 20px;
@@ -41,8 +46,9 @@ h2 { margin-bottom: 25px; }
     transition: 0.3s;
 }
 
-.upload-box:hover {
-    background: #f1ecff;
+.upload-box.drag-active {
+    background: rgba(118, 75, 162, 0.1);
+    border: 2px solid #764ba2;
 }
 
 .upload-box strong {
@@ -86,7 +92,6 @@ button {
     border-radius:12px;
     font-size:16px;
     cursor:pointer;
-    margin-top:10px;
 }
 
 button:hover { background:#5a3780; }
@@ -99,7 +104,7 @@ button:hover { background:#5a3780; }
     font-size:14px;
 }
 
-/* PROGRESS BAR */
+/* Progress Bar */
 .progress-container {
     width:100%;
     height:6px;
@@ -114,7 +119,7 @@ button:hover { background:#5a3780; }
     height:100%;
     width:0%;
     background:#764ba2;
-    transition: width 0.3s ease;
+    transition: width 0.2s ease;
 }
 
 #downloadLink {
@@ -128,8 +133,6 @@ button:hover { background:#5a3780; }
     text-decoration:none;
     font-weight:500;
 }
-
-#downloadLink:hover { background:#218838; }
 </style>
 </head>
 
@@ -139,8 +142,8 @@ button:hover { background:#5a3780; }
 
 <h2>Smart Image Compressor</h2>
 
-<label class="upload-box">
-    <strong>Click to Upload Image</strong>
+<label class="upload-box" id="uploadBox">
+    <strong>Click or Drag Image Anywhere</strong>
     <span>JPG, PNG, WebP Supported</span>
     <input type="file" id="upload" accept="image/*">
 </label>
@@ -172,9 +175,41 @@ button:hover { background:#5a3780; }
 
 <script>
 
+const uploadBox = document.getElementById("uploadBox");
+const fileInput = document.getElementById("upload");
+
+/* FULL SCREEN DRAG SUPPORT */
+["dragenter","dragover"].forEach(event => {
+    document.addEventListener(event, e => {
+        e.preventDefault();
+        document.body.classList.add("dragging");
+        uploadBox.classList.add("drag-active");
+    });
+});
+
+["dragleave","drop"].forEach(event => {
+    document.addEventListener(event, e => {
+        e.preventDefault();
+        document.body.classList.remove("dragging");
+        uploadBox.classList.remove("drag-active");
+    });
+});
+
+document.addEventListener("drop", e => {
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileInput.files = files;
+    }
+});
+
+/* SMART COMPRESSION */
 async function compressImage() {
 
-    const fileInput = document.getElementById("upload");
+    if (!fileInput.files[0]) {
+        alert("Upload image first");
+        return;
+    }
+
     const targetKB = parseInt(document.getElementById("targetSize").value);
     const format = document.getElementById("format").value;
     const sizeInfo = document.getElementById("sizeInfo");
@@ -182,15 +217,10 @@ async function compressImage() {
     const progressBar = document.getElementById("progressBar");
     const progressContainer = document.getElementById("progressContainer");
 
-    if (!fileInput.files[0]) {
-        alert("Upload image first");
-        return;
-    }
-
-    downloadLink.style.display = "none";
-    sizeInfo.style.display = "none";
-    progressContainer.style.display = "block";
-    progressBar.style.width = "0%";
+    downloadLink.style.display="none";
+    sizeInfo.style.display="none";
+    progressContainer.style.display="block";
+    progressBar.style.width="0%";
 
     const file = fileInput.files[0];
     const originalSize = (file.size/1024).toFixed(2);
@@ -206,15 +236,13 @@ async function compressImage() {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
 
-        async function compressWithBinarySearch(progressStep) {
-
+        async function compressBinary() {
             let minQ = 0.1;
             let maxQ = 1.0;
             let blob;
 
-            for (let i=0; i<8; i++) {
-
-                let midQ = (minQ + maxQ) / 2;
+            for (let i=0;i<8;i++) {
+                let midQ = (minQ + maxQ)/2;
 
                 canvas.width = width;
                 canvas.height = height;
@@ -224,28 +252,27 @@ async function compressImage() {
                     canvas.toBlob(resolve, format, midQ)
                 );
 
-                let sizeKB = blob.size / 1024;
-
-                progressBar.style.width = (progressStep + i*5) + "%";
+                let sizeKB = blob.size/1024;
+                progressBar.style.width = (20 + i*5) + "%";
 
                 if (sizeKB > targetKB)
                     maxQ = midQ;
                 else
                     minQ = midQ;
             }
-
             return blob;
         }
 
-        let finalBlob = await compressWithBinarySearch(20);
+        let finalBlob = await compressBinary();
 
         while (finalBlob.size/1024 > targetKB && width > 300) {
             width *= 0.85;
             height *= 0.85;
-            finalBlob = await compressWithBinarySearch(50);
+            progressBar.style.width="60%";
+            finalBlob = await compressBinary();
         }
 
-        progressBar.style.width = "100%";
+        progressBar.style.width="100%";
 
         const finalSize = (finalBlob.size/1024).toFixed(2);
 
