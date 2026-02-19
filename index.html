@@ -6,76 +6,93 @@
 <title>Smart Image Compressor</title>
 
 <style>
-* { box-sizing: border-box; }
+*{box-sizing:border-box;}
 
-body {
-    margin: 0;
-    font-family: 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg,#667eea,#764ba2);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
+body{
+    margin:0;
+    font-family:'Segoe UI',sans-serif;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    min-height:100vh;
 }
 
-/* Drag Overlay */
-body.dragging {
-    background: linear-gradient(135deg,#5f6dd8,#5a3ca0);
+.container{
+    background:#fff;
+    padding:35px;
+    border-radius:20px;
+    width:420px;
+    max-width:95%;
+    box-shadow:0 20px 40px rgba(0,0,0,0.25);
+    text-align:center;
 }
 
-.container {
-    background: #fff;
-    padding: 35px;
-    border-radius: 20px;
-    width: 420px;
-    max-width: 95%;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.25);
-    text-align: center;
+h2{margin-bottom:25px;}
+
+/* CLEAN UPLOAD CARD */
+.upload-box{
+    border:2px dashed #764ba2;
+    padding:30px;
+    border-radius:16px;
+    margin-bottom:25px;
+    background:#faf9ff;
+    transition:0.3s;
+    position:relative;
 }
 
-h2 { margin-bottom: 25px; }
-
-/* Upload Card */
-.upload-box {
-    border: 2px dashed #764ba2;
-    padding: 35px 20px;
-    border-radius: 16px;
-    cursor: pointer;
-    margin-bottom: 25px;
-    background: #faf9ff;
-    transition: 0.3s;
+.upload-box.active{
+    border:2px solid #764ba2;
+    background:#f1ecff;
 }
 
-.upload-box.drag-active {
-    background: rgba(118, 75, 162, 0.1);
-    border: 2px solid #764ba2;
+.upload-content{
+    pointer-events:none;
 }
 
-.upload-box strong {
-    display:block;
-    font-size:16px;
-    margin-bottom:8px;
+.upload-placeholder{
+    font-size:15px;
+    color:#444;
 }
 
-.upload-box span {
+.upload-preview{
+    display:none;
+}
+
+.upload-preview img{
+    width:100%;
+    max-height:220px;
+    object-fit:contain;
+    border-radius:12px;
+}
+
+.file-name{
+    margin-top:8px;
     font-size:13px;
-    color:#666;
+    color:#555;
+    word-break:break-word;
 }
 
-input[type="file"] { display:none; }
+input[type="file"]{
+    position:absolute;
+    inset:0;
+    opacity:0;
+    cursor:pointer;
+}
 
-.input-group {
+.input-group{
     text-align:left;
     margin-bottom:18px;
 }
 
-.input-group label {
+.input-group label{
     font-size:14px;
     display:block;
     margin-bottom:6px;
 }
 
-.input-group input, select {
+.input-group input,
+select{
     width:100%;
     padding:12px;
     border-radius:10px;
@@ -83,7 +100,7 @@ input[type="file"] { display:none; }
     font-size:14px;
 }
 
-button {
+button{
     width:100%;
     padding:14px;
     border:none;
@@ -94,9 +111,9 @@ button {
     cursor:pointer;
 }
 
-button:hover { background:#5a3780; }
+button:hover{background:#5a3780;}
 
-.result-box {
+.result-box{
     margin-top:20px;
     background:#f4f4f4;
     padding:14px;
@@ -104,8 +121,7 @@ button:hover { background:#5a3780; }
     font-size:14px;
 }
 
-/* Progress Bar */
-.progress-container {
+.progress-container{
     width:100%;
     height:6px;
     background:#e0e0e0;
@@ -115,14 +131,14 @@ button:hover { background:#5a3780; }
     display:none;
 }
 
-.progress-bar {
+.progress-bar{
     height:100%;
     width:0%;
     background:#764ba2;
-    transition: width 0.2s ease;
+    transition:width 0.2s ease;
 }
 
-#downloadLink {
+#downloadLink{
     display:none;
     margin-top:20px;
     width:100%;
@@ -131,7 +147,6 @@ button:hover { background:#5a3780; }
     color:white;
     border-radius:12px;
     text-decoration:none;
-    font-weight:500;
 }
 </style>
 </head>
@@ -142,11 +157,22 @@ button:hover { background:#5a3780; }
 
 <h2>Smart Image Compressor</h2>
 
-<label class="upload-box" id="uploadBox">
-    <strong>Click or Drag Image Anywhere</strong>
-    <span>JPG, PNG, WebP Supported</span>
+<div class="upload-box" id="uploadBox">
+    <div class="upload-content">
+
+        <div class="upload-placeholder" id="placeholder">
+            <strong>Click to Upload or Drag Image Here</strong><br>
+            JPG, PNG, WebP Supported
+        </div>
+
+        <div class="upload-preview" id="preview">
+            <img id="previewImg">
+            <div class="file-name" id="fileName"></div>
+        </div>
+
+    </div>
     <input type="file" id="upload" accept="image/*">
-</label>
+</div>
 
 <div class="input-group">
     <label>Target Size (KB)</label>
@@ -175,117 +201,125 @@ button:hover { background:#5a3780; }
 
 <script>
 
-const uploadBox = document.getElementById("uploadBox");
-const fileInput = document.getElementById("upload");
+const uploadBox=document.getElementById("uploadBox");
+const fileInput=document.getElementById("upload");
+const preview=document.getElementById("preview");
+const previewImg=document.getElementById("previewImg");
+const placeholder=document.getElementById("placeholder");
+const fileName=document.getElementById("fileName");
 
-/* FULL SCREEN DRAG SUPPORT */
-["dragenter","dragover"].forEach(event => {
-    document.addEventListener(event, e => {
-        e.preventDefault();
-        document.body.classList.add("dragging");
-        uploadBox.classList.add("drag-active");
-    });
-});
-
-["dragleave","drop"].forEach(event => {
-    document.addEventListener(event, e => {
-        e.preventDefault();
-        document.body.classList.remove("dragging");
-        uploadBox.classList.remove("drag-active");
-    });
-});
-
-document.addEventListener("drop", e => {
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        fileInput.files = files;
+/* PREVIEW */
+fileInput.addEventListener("change",function(){
+    if(this.files[0]){
+        const reader=new FileReader();
+        reader.onload=function(e){
+            previewImg.src=e.target.result;
+            fileName.textContent=fileInput.files[0].name;
+            preview.style.display="block";
+            placeholder.style.display="none";
+        }
+        reader.readAsDataURL(this.files[0]);
     }
 });
 
-/* SMART COMPRESSION */
-async function compressImage() {
+/* DRAG ONLY INSIDE CARD (NO FULL PAGE BUG) */
+uploadBox.addEventListener("dragover",e=>{
+    e.preventDefault();
+    uploadBox.classList.add("active");
+});
 
-    if (!fileInput.files[0]) {
-        alert("Upload image first");
-        return;
+uploadBox.addEventListener("dragleave",()=>{
+    uploadBox.classList.remove("active");
+});
+
+uploadBox.addEventListener("drop",e=>{
+    e.preventDefault();
+    uploadBox.classList.remove("active");
+    if(e.dataTransfer.files.length>0){
+        fileInput.files=e.dataTransfer.files;
+        fileInput.dispatchEvent(new Event("change"));
     }
+});
 
-    const targetKB = parseInt(document.getElementById("targetSize").value);
-    const format = document.getElementById("format").value;
-    const sizeInfo = document.getElementById("sizeInfo");
-    const downloadLink = document.getElementById("downloadLink");
-    const progressBar = document.getElementById("progressBar");
-    const progressContainer = document.getElementById("progressContainer");
+/* SMART COMPRESSION SAME AS BEFORE */
+async function compressImage(){
 
-    downloadLink.style.display="none";
-    sizeInfo.style.display="none";
-    progressContainer.style.display="block";
-    progressBar.style.width="0%";
+if(!fileInput.files[0]){
+alert("Upload image first");
+return;
+}
 
-    const file = fileInput.files[0];
-    const originalSize = (file.size/1024).toFixed(2);
+const targetKB=parseInt(document.getElementById("targetSize").value);
+const format=document.getElementById("format").value;
+const sizeInfo=document.getElementById("sizeInfo");
+const downloadLink=document.getElementById("downloadLink");
+const progressBar=document.getElementById("progressBar");
+const progressContainer=document.getElementById("progressContainer");
 
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
+downloadLink.style.display="none";
+sizeInfo.style.display="none";
+progressContainer.style.display="block";
+progressBar.style.width="0%";
 
-    img.onload = async function() {
+const file=fileInput.files[0];
+const originalSize=(file.size/1024).toFixed(2);
 
-        let width = img.width;
-        let height = img.height;
+const img=new Image();
+img.src=URL.createObjectURL(file);
 
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+img.onload=async function(){
 
-        async function compressBinary() {
-            let minQ = 0.1;
-            let maxQ = 1.0;
-            let blob;
+let width=img.width;
+let height=img.height;
 
-            for (let i=0;i<8;i++) {
-                let midQ = (minQ + maxQ)/2;
+const canvas=document.createElement("canvas");
+const ctx=canvas.getContext("2d");
 
-                canvas.width = width;
-                canvas.height = height;
-                ctx.drawImage(img,0,0,width,height);
+async function compressBinary(){
+let minQ=0.1;
+let maxQ=1.0;
+let blob;
 
-                blob = await new Promise(resolve =>
-                    canvas.toBlob(resolve, format, midQ)
-                );
+for(let i=0;i<8;i++){
+let midQ=(minQ+maxQ)/2;
 
-                let sizeKB = blob.size/1024;
-                progressBar.style.width = (20 + i*5) + "%";
+canvas.width=width;
+canvas.height=height;
+ctx.drawImage(img,0,0,width,height);
 
-                if (sizeKB > targetKB)
-                    maxQ = midQ;
-                else
-                    minQ = midQ;
-            }
-            return blob;
-        }
+blob=await new Promise(resolve=>
+canvas.toBlob(resolve,format,midQ)
+);
 
-        let finalBlob = await compressBinary();
+let sizeKB=blob.size/1024;
+progressBar.style.width=(20+i*5)+"%";
 
-        while (finalBlob.size/1024 > targetKB && width > 300) {
-            width *= 0.85;
-            height *= 0.85;
-            progressBar.style.width="60%";
-            finalBlob = await compressBinary();
-        }
+if(sizeKB>targetKB) maxQ=midQ;
+else minQ=midQ;
+}
+return blob;
+}
 
-        progressBar.style.width="100%";
+let finalBlob=await compressBinary();
 
-        const finalSize = (finalBlob.size/1024).toFixed(2);
+while(finalBlob.size/1024>targetKB && width>300){
+width*=0.85;
+height*=0.85;
+finalBlob=await compressBinary();
+}
 
-        sizeInfo.style.display="block";
-        sizeInfo.innerHTML = `
-            Original: <b>${originalSize} KB</b><br>
-            Compressed: <b>${finalSize} KB</b>
-        `;
+progressBar.style.width="100%";
 
-        downloadLink.href = URL.createObjectURL(finalBlob);
-        downloadLink.download = "compressed";
-        downloadLink.style.display="block";
-    };
+const finalSize=(finalBlob.size/1024).toFixed(2);
+
+sizeInfo.style.display="block";
+sizeInfo.innerHTML=`Original: <b>${originalSize} KB</b><br>
+Compressed: <b>${finalSize} KB</b>`;
+
+downloadLink.href=URL.createObjectURL(finalBlob);
+downloadLink.download="compressed";
+downloadLink.style.display="block";
+};
 }
 
 </script>
